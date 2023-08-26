@@ -1,0 +1,28 @@
+run:
+  timeout: 60m
+  go: 1.20
+
+issues:
+  max-per-linter: 0
+  max-same-issues: 0
+
+linters:
+  disable-all: false
+  enable:
+    - asciicheck
+    - errcheck
+    - gocritic
+    - goimports
+    - gosimple
+    - govet
+    - ineffassign
+    - nakedret
+    - misspell
+    - staticcheck
+    - typecheck
+    - unused
+    - unconvert
+    - unparam
+    - vet
+    - vetshadow
+

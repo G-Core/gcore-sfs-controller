@@ -1,0 +1,16 @@
+apiVersion: crd.gcore-sfs-controller.io/v1
+kind: NfsProvisioner
+metadata:
+  labels:
+    app.kubernetes.io/name: nfsprovisioner
+    app.kubernetes.io/instance: nfsprovisioner-sample
+    app.kubernetes.io/part-of: gcore-sfs-controller
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: gcore-sfs-controller
+  name: nfsprovisioner-sample
+spec:
+  apiToken: <put your api token here>
+  region: <put your region id here>
+  project: <put your project id here>
+ 
+
