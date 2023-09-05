@@ -1,0 +1,103 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - endpoints
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  - persistentvolumeclaims
+  - persistentvolumes
+  - pods
+  - secrets
+  - serviceaccounts
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
+  - upate
+- apiGroups:
+  - crd.gcore-sfs-controller.io
+  resources:
+  - nfsprovisioners
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - crd.gcore-sfs-controller.io
+  resources:
+  - nfsprovisioners/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - crd.gcore-sfs-controller.io
+  resources:
+  - nfsprovisioners/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  - clusterroles
+  - rolebindings
+  - roles
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - storageclasses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
