@@ -2,12 +2,43 @@
 This controller watches for nfs file shares in Gcore Cloud project and deploy storage classes and provisioner controller for each of them
 
 ## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+Gcore SFS Controller allows us to integrate our File Share Servers with the Kubernetes cluster automatically.
+When you create File Share and give access to your Kubernetes cluster, the controller configures a storage class for your k8s cluster and installs the nfs provisioner.
 
 ## Getting Started
 You’ll need a Kubernetes cluster to run against. You can use [KIND](https://sigs.k8s.io/kind) to get a local cluster for testing, or run against a remote cluster.
 **Note:** Your controller will automatically use the current context in your kubeconfig file (i.e. whatever cluster `kubectl cluster-info` shows).
 
+## Instalation
+### Install Gcore SFS Controller:
+
+```sh
+kubectl apply -f example/deploy/gcore-sfs-controller-install.yaml
+```
+### Install CRD
+1. You must fill in the next values:
+    ```yaml
+    spec:
+    apiToken: <put your api token here>
+    region: <put your region id here>
+    project: <put your project id here>
+    ```
+    `apiToken`: Create API token in [CLOUD UI](https://gcore.com/docs/account-settings/create-use-or-delete-a-permanent-api-token).
+
+
+    `region`: You can get a region id from our [API](https://api.gcore.com/docs/cloud#tag/Regions/operation/RegionHandler.get): You will get a list of regions from the "v1/regions" handler, and then you can find the needed region by the "display_name" field.
+
+2. Install CRD
+
+    ```sh
+    kubectl apply -f example/deploy/nfsprovisioner.yaml
+    ```
+
+### Create File Share
+
+Now, you can create a [File Share](https://gcore.com/docs/cloud/file-shares/configure-file-shares) and the controller configures a storage class and installs the nfs-provisioner automatically.
+
+## Development
 ### Running on the cluster
 1. Install Instances of Custom Resources:
 
