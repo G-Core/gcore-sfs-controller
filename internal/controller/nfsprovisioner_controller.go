@@ -25,7 +25,6 @@ import (
 	"github.com/G-Core/gcore-sfs-controller/pkg/gcoreclient"
 	"github.com/G-Core/gcorelabscloud-go/gcore/file_share/v1/file_shares"
 	gohelmclient "github.com/mittwald/go-helm-client"
-	"github.com/mittwald/go-helm-client/values"
 	"helm.sh/helm/v3/pkg/repo"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -38,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/yaml"
 )
 
 const RepositoryName = "nfs-subdir-external-provisioner"
@@ -218,29 +218,65 @@ func (r *NfsProvisionerReconciler) deployNfsProvisioner(ctx context.Context, pro
 	if err != nil {
 		return "", err
 	}
+	// Values are passed as structured YAML instead of --set-style strings so that
+	// characters like ',' and '=' in API-provided fields (e.g. the file share name)
+	// cannot inject additional Helm keys.
+	chartValues := map[string]interface{}{
+		"nfs": map[string]interface{}{
+			"server": nfsServer,
+			"path":   nfsPath,
+			// Options allow unmount volume when file share was deleted
+			"mountOptions": []string{"soft"},
+		},
+		"storageClass": map[string]interface{}{
+			"name":         fmt.Sprintf("nfs-%s", fileShare.ID),
+			"accessModes":  "ReadWriteMany",
+			"defaultClass": false,
+		},
+		"image": map[string]interface{}{
+			"tag": provisioner.Spec.ImageVersion,
+		},
+		"labels": map[string]interface{}{
+			NfsProvisionerIDLabelName: string(provisioner.UID),
+			FileShareIDLabelName:      fileShare.ID,
+			FileShareNameLabelName:    sanitizeLabelValue(fileShare.Name),
+		},
+	}
+	valuesYaml, err := yaml.Marshal(chartValues)
+	if err != nil {
+		return "", err
+	}
 	release, err := r.HelmClient.InstallOrUpgradeChart(ctx, &gohelmclient.ChartSpec{
 		ReleaseName: r.getReleaseName(fileShare.ID),
 		ChartName:   fmt.Sprintf("%s/%s", RepositoryName, provisioner.Spec.ChartName),
 		Namespace:   provisioner.Namespace,
-		ValuesOptions: values.Options{
-			Values: []string{
-				fmt.Sprintf("nfs.server=%s", nfsServer),
-				fmt.Sprintf("nfs.path=%s", nfsPath),
-				fmt.Sprintf("storageClass.name=nfs-%s", fileShare.ID),
-				"storageClass.accessModes=ReadWriteMany",
-				"storageClass.defaultClass=false",
-				"nfs.mountOptions={soft}", // Options allow unmount volume when file share was deleted
-				fmt.Sprintf("image.tag=%s", provisioner.Spec.ImageVersion),
-				fmt.Sprintf("labels.%s=%s", NfsProvisionerIDLabelName, provisioner.UID),
-				fmt.Sprintf("labels.%s=%s", FileShareIDLabelName, fileShare.ID),
-				fmt.Sprintf("labels.%s=%s", FileShareNameLabelName, fileShare.Name),
-			},
-		}},
+		ValuesYaml:  string(valuesYaml),
+	},
 		nil)
 	if err != nil {
 		return "", err
 	}
 	return release.Name, nil
+}
+
+// sanitizeLabelValue converts an arbitrary string into a valid Kubernetes label
+// value: at most 63 characters, alphanumeric with '-', '_' and '.' allowed in
+// the middle. Invalid characters are replaced with '-'.
+func sanitizeLabelValue(value string) string {
+	const maxLabelValueLength = 63
+	sanitized := []byte(strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_', r == '.':
+			return r
+		default:
+			return '-'
+		}
+	}, value))
+	if len(sanitized) > maxLabelValueLength {
+		sanitized = sanitized[:maxLabelValueLength]
+	}
+	trimmed := strings.Trim(string(sanitized), "-_.")
+	return trimmed
 }
 
 func (r *NfsProvisionerReconciler) reconcileDelete(ctx context.Context, provisioner *crdv1.NfsProvisioner) (ctrl.Result, error) {

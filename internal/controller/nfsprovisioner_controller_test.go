@@ -110,4 +110,91 @@ var _ = Describe("NfsProvisioner Reconciler", func() {
 		Expect(len(storageClassList.Items)).To(Equal(0))
 
 	})
+
+	It("File share name with Helm --set syntax should not inject chart values", func() {
+		provisioner := crdv1.NfsProvisioner{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "NfsProvisioner",
+				APIVersion: crdv1.GroupVersion.String(),
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      testNfsProvisionerName + "-inject",
+				Namespace: DefaultNamespace,
+			},
+			Spec: crdv1.NfsProvisionerSpec{
+				APIToken:       "faketoken",
+				APIURL:         "http://127.0.0.1",
+				RegionID:       2,
+				ProjectID:      5,
+				HelmRepository: "https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner",
+				ChartName:      "nfs-subdir-external-provisioner",
+				ImageVersion:   "v4.0.2",
+			},
+		}
+		err := k8sClient.Create(ctx, &provisioner)
+		Expect(err).NotTo(HaveOccurred())
+
+		helmClient, err := gohelmclient.NewClientFromRestConf(
+			&gohelmclient.RestConfClientOptions{
+				Options:    &gohelmclient.Options{},
+				RestConfig: cfg,
+			})
+		Expect(err).NotTo(HaveOccurred())
+		fileShare := file_shares.FileShare{
+			Name:            "legit,image.repository=evil/malicious,image.tag=latest",
+			ID:              "0e2a9d4c-11a2-4f54-b67e-6c9d4e34a409",
+			Protocol:        "nfs",
+			Status:          "available",
+			Size:            2,
+			VolumeType:      "default_share_type",
+			ConnectionPoint: "10.33.20.91:/shares/share-0e2a9d4c-11a2-4f54-b67e-6c9d4e34a409",
+			ProjectID:       1,
+			RegionID:        1,
+		}
+		fileShareLister := gcoreclient.MockFileShareClient{
+			FileShares: []file_shares.FileShare{fileShare},
+		}
+
+		reconciler := NfsProvisionerReconciler{
+			Client:          k8sClient,
+			HelmClient:      helmClient,
+			FileShareClient: fileShareLister,
+		}
+		_, err = reconciler.Reconcile(
+			ctx,
+			ctrl.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: DefaultNamespace,
+					Name:      provisioner.Name,
+				}})
+		Expect(err).NotTo(HaveOccurred())
+
+		// The user-supplied release values must not contain keys injected via
+		// commas/equals in the file share name.
+		releaseValues, err := helmClient.GetReleaseValues("nfsprovisioner-"+fileShare.ID, false)
+		Expect(err).NotTo(HaveOccurred())
+		imageValues, ok := releaseValues["image"].(map[string]interface{})
+		Expect(ok).To(BeTrue())
+		Expect(imageValues).NotTo(HaveKey("repository"))
+		Expect(imageValues["tag"]).To(Equal("v4.0.2"))
+
+		// The file share name must be sanitized into a valid label value.
+		storageClass := storagev1.StorageClass{}
+		err = k8sClient.Get(ctx, types.NamespacedName{Name: "nfs-" + fileShare.ID}, &storageClass)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(storageClass.Labels["fileShareName"]).To(
+			Equal("legit-image.repository-evil-malicious-image.tag-latest"))
+
+		// Cleanup
+		err = k8sClient.Delete(ctx, &provisioner)
+		Expect(err).NotTo(HaveOccurred())
+		_, err = reconciler.Reconcile(
+			ctx,
+			ctrl.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: DefaultNamespace,
+					Name:      provisioner.Name,
+				}})
+		Expect(err).NotTo(HaveOccurred())
+	})
 })
