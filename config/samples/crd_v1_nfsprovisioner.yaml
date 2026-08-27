@@ -1,3 +1,10 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gcore-api-token
+stringData:
+  apiToken: <put your api token here>
+---
 apiVersion: crd.gcore-sfs-controller.io/v1
 kind: NfsProvisioner
 metadata:
@@ -9,6 +16,8 @@ metadata:
     app.kubernetes.io/created-by: gcore-sfs-controller
   name: nfsprovisioner-sample
 spec:
-  apiToken: <put your api token here>
+  apiTokenSecretRef:
+    name: gcore-api-token
+    key: apiToken
   region: <put your region id here>
   project: <put your project id here>

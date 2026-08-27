@@ -1,3 +1,11 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gcore-api-token
+  namespace: gcore-sfs-controller-system
+stringData:
+  apiToken: <put your api token here>
+---
 apiVersion: crd.gcore-sfs-controller.io/v1
 kind: NfsProvisioner
 metadata:
@@ -10,6 +18,8 @@ metadata:
   name: nfsprovisioner
   namespace: gcore-sfs-controller-system
 spec:
-  apiToken: <put your api token here>
+  apiTokenSecretRef:
+    name: gcore-api-token
+    key: apiToken
   region: <put your region id here>
   project: <put your project id here>

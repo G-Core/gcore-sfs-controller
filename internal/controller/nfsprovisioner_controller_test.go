@@ -7,6 +7,7 @@ import (
 	gohelmclient "github.com/mittwald/go-helm-client"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -112,6 +113,20 @@ var _ = Describe("NfsProvisioner Reconciler", func() {
 	})
 
 	It("File share name with Helm --set syntax should not inject chart values", func() {
+		// The API token is referenced from a Secret instead of being stored
+		// in plaintext on the custom resource.
+		tokenSecret := corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "gcore-api-token",
+				Namespace: DefaultNamespace,
+			},
+			Data: map[string][]byte{
+				crdv1.DefaultAPITokenSecretKey: []byte("faketoken"),
+			},
+		}
+		err := k8sClient.Create(ctx, &tokenSecret)
+		Expect(err).NotTo(HaveOccurred())
+
 		provisioner := crdv1.NfsProvisioner{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "NfsProvisioner",
@@ -122,7 +137,10 @@ var _ = Describe("NfsProvisioner Reconciler", func() {
 				Namespace: DefaultNamespace,
 			},
 			Spec: crdv1.NfsProvisionerSpec{
-				APIToken:       "faketoken",
+				APITokenSecretRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: tokenSecret.Name},
+					Key:                  crdv1.DefaultAPITokenSecretKey,
+				},
 				APIURL:         "http://127.0.0.1",
 				RegionID:       2,
 				ProjectID:      5,
@@ -131,7 +149,7 @@ var _ = Describe("NfsProvisioner Reconciler", func() {
 				ImageVersion:   "v4.0.2",
 			},
 		}
-		err := k8sClient.Create(ctx, &provisioner)
+		err = k8sClient.Create(ctx, &provisioner)
 		Expect(err).NotTo(HaveOccurred())
 
 		helmClient, err := gohelmclient.NewClientFromRestConf(

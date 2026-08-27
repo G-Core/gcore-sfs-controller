@@ -58,9 +58,32 @@ spec:
             description: NfsProvisionerSpec defines the desired state of NfsProvisioner
             properties:
               apiToken:
-                description: APIToken is the API token used to authenticate with Gcore
-                  Cloud.
+                description: "APIToken is the API token used to authenticate with
+                  Gcore Cloud. \n Deprecated: storing the token in the custom resource
+                  exposes it to anyone who can read the resource (kubectl get, etcd
+                  backups, audit logs). Use APITokenSecretRef instead."
                 type: string
+              apiTokenSecretRef:
+                description: APITokenSecretRef references a key of a Secret in the
+                  same namespace as the NfsProvisioner that holds the Gcore Cloud
+                  API token. If the key is not specified, it defaults to "apiToken".
+                  Exactly one of APIToken and APITokenSecretRef must be set.
+                properties:
+                  key:
+                    description: The key of the secret to select from.  Must be a
+                      valid secret key.
+                    type: string
+                  name:
+                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?'
+                    type: string
+                  optional:
+                    description: Specify whether the Secret or its key must be defined
+                    type: boolean
+                required:
+                - key
+                type: object
+                x-kubernetes-map-type: atomic
               apiURL:
                 description: APIURL is the URL of the Gcore Cloud API.
                 type: string
@@ -87,7 +110,6 @@ spec:
                 description: File share region ID
                 type: integer
             required:
-            - apiToken
             - project
             - region
             type: object

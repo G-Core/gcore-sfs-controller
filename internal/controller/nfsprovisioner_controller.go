@@ -159,7 +159,12 @@ func (r *NfsProvisionerReconciler) updateStatus(ctx context.Context, provisioner
 func (r *NfsProvisionerReconciler) reconcileNormal(ctx context.Context, provisioner *crdv1.NfsProvisioner) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
-	allFileShares, err := r.FileShareClient.ListFileShares(provisioner)
+	apiToken, err := r.resolveAPIToken(ctx, provisioner)
+	if err != nil {
+		log.Error(err, "resolve Gcore Cloud API token", "namespace", provisioner.Namespace, "name", provisioner.Name)
+		return ctrl.Result{}, err
+	}
+	allFileShares, err := r.FileShareClient.ListFileShares(provisioner, apiToken)
 	if err != nil {
 		log.Error(err, "get file shares in the project", "regionID", provisioner.Spec.RegionID, "projectID", provisioner.Spec.ProjectID)
 		return ctrl.Result{}, err
@@ -190,6 +195,33 @@ func (r *NfsProvisionerReconciler) reconcileNormal(ctx context.Context, provisio
 		}
 	}
 	return ctrl.Result{}, nil
+}
+
+// resolveAPIToken returns the Gcore Cloud API token for the provisioner,
+// reading it from the referenced Secret if spec.apiTokenSecretRef is set and
+// falling back to the deprecated plaintext spec.apiToken otherwise.
+func (r *NfsProvisionerReconciler) resolveAPIToken(ctx context.Context, provisioner *crdv1.NfsProvisioner) (string, error) {
+	secretRef := provisioner.Spec.APITokenSecretRef
+	if secretRef == nil {
+		if provisioner.Spec.APIToken == "" {
+			return "", fmt.Errorf("neither spec.apiTokenSecretRef nor spec.apiToken is set")
+		}
+		return provisioner.Spec.APIToken, nil
+	}
+	secret := corev1.Secret{}
+	secretName := client.ObjectKey{Namespace: provisioner.Namespace, Name: secretRef.Name}
+	if err := r.Client.Get(ctx, secretName, &secret); err != nil {
+		return "", fmt.Errorf("get API token secret %q: %w", secretName, err)
+	}
+	key := secretRef.Key
+	if key == "" {
+		key = crdv1.DefaultAPITokenSecretKey
+	}
+	token, found := secret.Data[key]
+	if !found || len(token) == 0 {
+		return "", fmt.Errorf("secret %q does not contain a non-empty key %q", secretName, key)
+	}
+	return string(token), nil
 }
 
 func (r NfsProvisionerReconciler) getReleaseName(fileShareID string) string {
