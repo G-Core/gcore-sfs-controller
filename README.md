@@ -18,12 +18,24 @@ kubectl apply -f example/deploy/gcore-sfs-controller-install.yaml
 ### Install CRD
 1. You must fill in the next values:
     ```yaml
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: gcore-api-token
+      namespace: gcore-sfs-controller-system
+    stringData:
+      apiToken: <put your api token here>
+    ---
     spec:
-    apiToken: <put your api token here>
-    region: <put your region id here>
-    project: <put your project id here>
+      apiTokenSecretRef:
+        name: gcore-api-token
+        key: apiToken
+      region: <put your region id here>
+      project: <put your project id here>
     ```
-    `apiToken`: Create API token in [CLOUD UI](https://gcore.com/docs/account-settings/create-use-or-delete-a-permanent-api-token).
+    `apiTokenSecretRef`: References a key of a Secret (in the same namespace as the NfsProvisioner) holding your API token. Create API token in [CLOUD UI](https://gcore.com/docs/account-settings/create-use-or-delete-a-permanent-api-token).
+
+    **Note:** The `spec.apiToken` field (plaintext token stored directly in the custom resource) is deprecated because anyone able to read the resource can read the token. Use `apiTokenSecretRef` instead.
 
 
     `region`: You can get a region id from our [API](https://api.gcore.com/docs/cloud#tag/Regions/operation/RegionHandler.get): You will get a list of regions from the "v1/regions" handler, and then you can find the needed region by the "display_name" field.

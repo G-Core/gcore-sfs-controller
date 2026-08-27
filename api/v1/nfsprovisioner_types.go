@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -24,10 +25,26 @@ import (
 // by its managing controller.
 const NfsProvisionerFinalizer = "nfsprovisioner.gcore-sfs-controller.io"
 
+// DefaultAPITokenSecretKey is the Secret key used when
+// spec.apiTokenSecretRef does not specify one.
+const DefaultAPITokenSecretKey = "apiToken"
+
 // NfsProvisionerSpec defines the desired state of NfsProvisioner
 type NfsProvisionerSpec struct {
 	// APIToken is the API token used to authenticate with Gcore Cloud.
-	APIToken string `json:"apiToken"`
+	//
+	// Deprecated: storing the token in the custom resource exposes it to
+	// anyone who can read the resource (kubectl get, etcd backups, audit
+	// logs). Use APITokenSecretRef instead.
+	// +optional
+	APIToken string `json:"apiToken,omitempty"`
+
+	// APITokenSecretRef references a key of a Secret in the same namespace
+	// as the NfsProvisioner that holds the Gcore Cloud API token.
+	// If the key is not specified, it defaults to "apiToken".
+	// Exactly one of APIToken and APITokenSecretRef must be set.
+	// +optional
+	APITokenSecretRef *corev1.SecretKeySelector `json:"apiTokenSecretRef,omitempty"`
 	// APIURL is the URL of the Gcore Cloud API.
 	// +optional
 	APIURL string `json:"apiURL,omitempty"`

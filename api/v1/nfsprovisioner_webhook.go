@@ -66,6 +66,9 @@ func (r *NfsProvisioner) Default() {
 		r.Spec.ImageVersion = DefaultNfsProvisionerImageVersion
 	}
 	nfsprovisionerlog.Info("default", "imageVersion", r.Spec.ImageVersion)
+	if r.Spec.APITokenSecretRef != nil && r.Spec.APITokenSecretRef.Key == "" {
+		r.Spec.APITokenSecretRef.Key = DefaultAPITokenSecretKey
+	}
 }
 
 //+kubebuilder:webhook:path=/validate-crd-gcore-sfs-controller-io-v1-nfsprovisioner,mutating=false,failurePolicy=fail,sideEffects=None,groups=crd.gcore-sfs-controller.io,resources=nfsprovisioners,verbs=create;update,versions=v1,name=vnfsprovisioner.kb.io,admissionReviewVersions=v1
@@ -79,8 +82,19 @@ func ValidateNfsProvisioner(r *NfsProvisioner) error {
 		allErrs = append(allErrs, regionErr)
 	}
 	if r.Spec.ProjectID <= 0 {
-		projectErr := field.Invalid(field.NewPath("spec").Child("project"), r.Spec.RegionID, "must be positive")
+		projectErr := field.Invalid(field.NewPath("spec").Child("project"), r.Spec.ProjectID, "must be positive")
 		allErrs = append(allErrs, projectErr)
+	}
+	switch {
+	case r.Spec.APIToken == "" && r.Spec.APITokenSecretRef == nil:
+		allErrs = append(allErrs, field.Required(field.NewPath("spec").Child("apiTokenSecretRef"),
+			"one of apiToken or apiTokenSecretRef must be set"))
+	case r.Spec.APIToken != "" && r.Spec.APITokenSecretRef != nil:
+		allErrs = append(allErrs, field.Forbidden(field.NewPath("spec").Child("apiToken"),
+			"apiToken and apiTokenSecretRef are mutually exclusive"))
+	case r.Spec.APITokenSecretRef != nil && r.Spec.APITokenSecretRef.Name == "":
+		allErrs = append(allErrs, field.Required(field.NewPath("spec").Child("apiTokenSecretRef").Child("name"),
+			"secret name must be set"))
 	}
 	if len(allErrs) == 0 {
 		return nil
